@@ -29,15 +29,27 @@ NexusAI is a beginner-friendly Streamlit application that captures intake reques
 
 No API key is required for local use. The app automatically uses demo mode when either `NEXUSAI_LLM_API_KEY` or `NEXUSAI_LLM_BASE_URL` is missing.
 
-## Optional AI configuration
+## Configure a real LLM provider
 
-Set these environment variables before launching the app if you want to use an LLM endpoint:
+The default provider is OpenAI's Chat Completions API. Set the API key as an
+environment variable; do not put a real key in source files or commit it.
+Classification sends only the request subject and description to the provider,
+not the requester's name or email.
+
+PowerShell:
 
 ```powershell
-$env:NEXUSAI_LLM_API_KEY = "your-api-key"
-$env:NEXUSAI_LLM_BASE_URL = "https://api.example.com/v1/chat/completions"
+$env:NEXUSAI_LLM_API_KEY = Read-Host "Enter your LLM API key"
+$env:NEXUSAI_LLM_BASE_URL = "https://api.openai.com/v1/chat/completions"
 $env:NEXUSAI_LLM_MODEL = "gpt-4o-mini"
+python -m streamlit run app.py
 ```
+
+For an OpenAI-compatible provider, set `NEXUSAI_LLM_BASE_URL` to that provider's
+Chat Completions endpoint and set `NEXUSAI_LLM_MODEL` to a model it supports.
+When no API key is configured, the app clearly indicates demo mode. If a
+configured provider request fails, the app reports the error and does not
+silently switch to demo mode or save a partially classified request.
 
 ## Launch the app
 

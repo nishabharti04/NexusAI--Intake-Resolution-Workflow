@@ -8,7 +8,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from nexusai.classifier import build_proposal
+from nexusai.classifier import LLMProviderError
 from nexusai.config import database_path
 from nexusai.models import (
     ActionProposal,
@@ -25,8 +25,7 @@ DB_PATH = database_path()
 
 def _mode_badge() -> str:
     api_key = os.getenv("NEXUSAI_LLM_API_KEY")
-    base_url = os.getenv("NEXUSAI_LLM_BASE_URL")
-    if api_key and base_url:
+    if api_key:
         return "AI mode enabled"
     return "Demo mode active"
 
@@ -104,7 +103,11 @@ def _render_new_request() -> None:
         st.error(f"Request data is invalid: {exc}")
         return
 
-    ticket = submit_request(request, path=DB_PATH)
+    try:
+        ticket = submit_request(request, path=DB_PATH)
+    except LLMProviderError as exc:
+        st.error(f"AI classification failed. The request was not saved. {exc}")
+        return
     classification = ticket.classification
     proposal = ticket.proposal
 
@@ -227,7 +230,7 @@ def main() -> None:
     st.caption(f"System mode: { _mode_badge() }")
 
     with st.sidebar:
-        st.image("https://images.unsplash.com/photo-1526379095098-d400fd0bf935?auto=format&fit=crop&w=180&q=80", width=140)
+        st.markdown("### NexusAI")
         page = st.radio("Navigation", ["Dashboard", "New Request", "Ticket Queue", "Approval Center", "Analytics"])
 
     if page == "Dashboard":

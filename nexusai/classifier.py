@@ -7,7 +7,7 @@ import os
 from typing import Any
 
 import requests
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 
 from nexusai.models import (
     ActionProposal,
@@ -17,6 +17,10 @@ from nexusai.models import (
     RequestCategory,
     Urgency,
 )
+
+
+class LLMProviderError(RuntimeError):
+    """A provider request or response could not be completed safely."""
 
 
 def _category_for_text(text: str) -> RequestCategory:
@@ -107,7 +111,6 @@ def _build_llm_request_body(request: IntakeRequest) -> dict[str, Any]:
                 "role": "user",
                 "content": (
                     f"Subject: {request.subject}\nDescription: {request.description}\n"
-                    f"Requester: {request.requester_name} <{request.requester_email}>"
                 ),
             },
         ],
@@ -118,31 +121,43 @@ def _build_llm_request_body(request: IntakeRequest) -> dict[str, Any]:
 def classify_request(request: IntakeRequest) -> tuple[ClassificationResult, str]:
     """Return a structured classification and the mode used to generate it."""
     api_key = os.getenv("NEXUSAI_LLM_API_KEY")
-    base_url = os.getenv("NEXUSAI_LLM_BASE_URL")
-    if not api_key or not base_url:
+    if not api_key:
         return _demo_classification(request), "demo"
-
-    response = requests.post(
-        base_url,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        json=_build_llm_request_body(request),
-        timeout=30,
+    base_url = os.getenv(
+        "NEXUSAI_LLM_BASE_URL",
+        "https://api.openai.com/v1/chat/completions",
     )
-    response.raise_for_status()
-    payload = response.json()
 
-    content = payload.get("choices", [{}])[0].get("message", {}).get("content", "")
     try:
-        if isinstance(content, str):
-            parsed = json.loads(content)
-        else:
-            parsed = content
+        response = requests.post(
+            base_url,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json=_build_llm_request_body(request),
+            timeout=30,
+        )
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        status = exc.response.status_code if exc.response is not None else None
+        if status is not None:
+            raise LLMProviderError(
+                f"LLM provider returned HTTP {status}. Check the API key, endpoint, and provider status."
+            ) from None
+        raise LLMProviderError(
+            "Could not reach the LLM provider. Check the endpoint and network connection."
+        ) from None
+
+    try:
+        payload = response.json()
+        content = payload["choices"][0]["message"]["content"]
+        parsed = json.loads(content) if isinstance(content, str) else content
         classification = _validate_model_payload(parsed)
-    except (TypeError, ValueError, json.JSONDecodeError):
-        raise ValueError("The LLM response was not valid structured JSON.") from None
+    except (KeyError, IndexError, TypeError, ValueError, ValidationError):
+        raise LLMProviderError(
+            "The LLM provider response did not contain valid classification JSON."
+        ) from None
 
     return classification, "ai"
 

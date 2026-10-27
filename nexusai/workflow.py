@@ -14,8 +14,8 @@ def submit_request(request: IntakeRequest, path: Path | None = None) -> TicketRe
     """Submit a request, classify it, and store the first decision."""
     target_path = path or database_path()
     initialize_database(target_path)
-    ticket = create_ticket(target_path, request)
     classification, proposal, _ = build_proposal(request)
+    ticket = create_ticket(target_path, request)
     updated = update_ticket(
         target_path,
         ticket.id,

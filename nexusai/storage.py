@@ -93,6 +93,65 @@ def list_tickets(
     return [_ticket_from_row(row) for row in rows]
 
 
+def update_ticket(
+    path: Path,
+    ticket_id: int,
+    *,
+    classification: ClassificationResult | None = None,
+    proposal: ActionProposal | None = None,
+    status: TicketStatus | None = None,
+    reviewer_notes: str | None = None,
+) -> TicketRecord:
+    """Update a ticket's assessment or review state."""
+    with sqlite3.connect(path) as connection:
+        connection.row_factory = sqlite3.Row
+        existing = connection.execute(
+            "SELECT * FROM tickets WHERE id = ?", (ticket_id,)
+        ).fetchone()
+    if existing is None:
+        raise KeyError(f"Ticket {ticket_id} does not exist.")
+
+    current = _ticket_from_row(existing)
+    updated_classification = (
+        classification.model_dump_json()
+        if classification is not None
+        else current.classification.model_dump_json()
+        if current.classification
+        else None
+    )
+    updated_proposal = (
+        proposal.model_dump_json()
+        if proposal is not None
+        else current.proposal.model_dump_json()
+        if current.proposal
+        else None
+    )
+    new_status = status.value if status is not None else current.status.value
+    new_reviewer_notes = (
+        reviewer_notes if reviewer_notes is not None else current.reviewer_notes
+    )
+    timestamp = datetime.now(UTC).isoformat()
+
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            """
+            UPDATE tickets
+            SET classification_json = ?, proposal_json = ?, status = ?,
+                reviewer_notes = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                updated_classification,
+                updated_proposal,
+                new_status,
+                new_reviewer_notes,
+                timestamp,
+                ticket_id,
+            ),
+        )
+    return get_ticket(path, ticket_id)
+
+
 def _ticket_from_row(row: sqlite3.Row) -> TicketRecord:
     classification_json = row["classification_json"]
     proposal_json = row["proposal_json"]
