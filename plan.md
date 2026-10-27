@@ -84,8 +84,14 @@ The planning documents are created before implementation. The planning-only comm
 
 | Sprint | Commit | Push status | Verification |
 |---|---|---|---|
-| 0 — Specification and plan | Pending | Pending | Pending |
-| 1 — Foundation and persistence | Pending | Pending | Pending |
-| 2 — Classification and workflow | Pending | Pending | Pending |
-| 3 — Streamlit and analytics | Pending | Pending | Pending |
-| 4 — Verification and handoff | Pending | Pending | Pending |
+| 0 — Specification and plan | `69e755b` | Pushed | Planning documents committed first |
+| 1 — Foundation and persistence | `0760e01` | Pushed | Initial model and persistence suite passed |
+| 2 — Classification and workflow | `e6b6747` | Pushed | Workflow, demo policy, and review tests passed |
+| 3 — Streamlit and analytics | `e6b6747` | Pushed | Streamlit UI smoke test passed |
+| 4 — Verification and handoff | `081b47d` | Pushed | 20 tests passed; provider integration documented |
+
+## Post-MVP extension — OIDC authentication and RBAC
+
+- Added Streamlit OIDC sign-in, email-based role assignment, requester ticket ownership, reviewer authorization, and legacy SQLite schema migration.
+- Verification before push: full test suite and unauthenticated UI smoke test.
+- Commit and push status: pending.

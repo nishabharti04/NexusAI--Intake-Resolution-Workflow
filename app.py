@@ -7,7 +7,15 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+from streamlit.errors import StreamlitSecretNotFoundError
 
+from nexusai.auth import (
+    AuthenticatedUser,
+    UserRole,
+    allowed_pages,
+    can_view_all_tickets,
+    resolve_role,
+)
 from nexusai.classifier import LLMProviderError
 from nexusai.config import database_path
 from nexusai.models import (
@@ -58,8 +66,8 @@ def _ticket_to_row(ticket) -> dict:
     }
 
 
-def _render_dashboard() -> None:
-    tickets = list_tickets(DB_PATH)
+def _render_dashboard(user: AuthenticatedUser) -> None:
+    tickets = _tickets_for_user(user)
     total = len(tickets)
     pending = sum(1 for ticket in tickets if ticket.status in {TicketStatus.NEW, TicketStatus.PENDING_REVIEW, TicketStatus.AWAITING_INFORMATION})
     escalated = sum(1 for ticket in tickets if ticket.status is TicketStatus.ESCALATED)
@@ -80,13 +88,13 @@ def _render_dashboard() -> None:
     st.dataframe(df, use_container_width=True, hide_index=True)
 
 
-def _render_new_request() -> None:
+def _render_new_request(user: AuthenticatedUser) -> None:
     st.subheader("New Request")
     with st.form("new_request_form"):
         subject = st.text_input("Subject")
         description = st.text_area("Description")
-        requester_name = st.text_input("Requester name")
-        requester_email = st.text_input("Requester email")
+        requester_name = st.text_input("Requester name", value=user.name, disabled=True)
+        requester_email = st.text_input("Requester email", value=user.email, disabled=True)
         submitted = st.form_submit_button("Submit request")
 
     if not submitted:
@@ -104,7 +112,7 @@ def _render_new_request() -> None:
         return
 
     try:
-        ticket = submit_request(request, path=DB_PATH)
+        ticket = submit_request(request, path=DB_PATH, created_by=user.subject)
     except LLMProviderError as exc:
         st.error(f"AI classification failed. The request was not saved. {exc}")
         return
@@ -128,8 +136,8 @@ def _render_new_request() -> None:
             st.code(proposal.draft_response)
 
 
-def _render_ticket_queue() -> None:
-    tickets = list_tickets(DB_PATH)
+def _render_ticket_queue(user: AuthenticatedUser) -> None:
+    tickets = _tickets_for_user(user)
     if not tickets:
         st.info("The ticket queue is empty.")
         return
@@ -146,7 +154,10 @@ def _render_ticket_queue() -> None:
     st.dataframe(df, use_container_width=True, hide_index=True)
 
 
-def _render_approval_center() -> None:
+def _render_approval_center(user: AuthenticatedUser) -> None:
+    if user.role is UserRole.REQUESTER:
+        st.error("Your account does not have permission to review tickets.")
+        return
     tickets = [ticket for ticket in list_tickets(DB_PATH) if ticket.proposal and ticket.status in {TicketStatus.PENDING_REVIEW, TicketStatus.AWAITING_INFORMATION}]
     if not tickets:
         st.info("No tickets are pending approval.")
@@ -190,12 +201,17 @@ def _render_approval_center() -> None:
             decision,
             reviewer_notes=reviewer_notes or None,
             edited_proposal=edited_proposal,
+            reviewer_role=user.role,
+            reviewed_by=user.subject,
             path=DB_PATH,
         )
         st.success(f"Ticket #{updated.id} updated to {updated.status.value}.")
 
 
-def _render_analytics() -> None:
+def _render_analytics(user: AuthenticatedUser) -> None:
+    if user.role is UserRole.REQUESTER:
+        st.error("Your account does not have permission to view team analytics.")
+        return
     tickets = list_tickets(DB_PATH)
     if not tickets:
         st.info("No analytics are available until a request is processed.")
@@ -210,6 +226,61 @@ def _render_analytics() -> None:
 
     st.subheader("Workflow status")
     st.bar_chart(df["Status"].value_counts())
+
+
+def _tickets_for_user(user: AuthenticatedUser):
+    if can_view_all_tickets(user.role):
+        return list_tickets(DB_PATH)
+    return list_tickets(DB_PATH, created_by=user.subject)
+
+
+def _authenticate_user() -> AuthenticatedUser | None:
+    try:
+        auth_config = st.secrets.get("auth", {})
+    except StreamlitSecretNotFoundError:
+        auth_config = {}
+    required_auth_settings = (
+        "redirect_uri",
+        "cookie_secret",
+        "client_id",
+        "client_secret",
+        "server_metadata_url",
+    )
+    if any(not auth_config.get(setting) for setting in required_auth_settings):
+        st.error(
+            "Sign-in is not configured. Follow the OIDC setup instructions in README.md "
+            "and add credentials to .streamlit/secrets.toml."
+        )
+        return None
+
+    if not st.user.is_logged_in:
+        st.button("Sign in with your organization", on_click=st.login)
+        return None
+
+    email = st.user.get("email")
+    subject = st.user.get("sub")
+    if not isinstance(email, str) or not isinstance(subject, str) or not email or not subject:
+        st.error("Your identity provider did not return the required email and subject claims.")
+        st.logout()
+        return None
+    if st.user.get("email_verified") is False:
+        st.error("Your identity provider reports that your email address is not verified.")
+        st.logout()
+        return None
+
+    nexusai_config = st.secrets.get("nexusai", {})
+    role = resolve_role(
+        email,
+        admin_emails=nexusai_config.get("admin_emails", []),
+        reviewer_emails=nexusai_config.get("reviewer_emails", []),
+    )
+    name = st.user.get("name")
+    return AuthenticatedUser(
+        subject=subject,
+        email=email,
+        name=name if isinstance(name, str) and name else email,
+        role=role,
+    )
 
 
 def main() -> None:
@@ -227,22 +298,27 @@ def main() -> None:
         unsafe_allow_html=True,
     )
     st.title("NexusAI — Intake Resolution Workflow")
+    user = _authenticate_user()
+    if user is None:
+        st.stop()
     st.caption(f"System mode: { _mode_badge() }")
 
     with st.sidebar:
         st.markdown("### NexusAI")
-        page = st.radio("Navigation", ["Dashboard", "New Request", "Ticket Queue", "Approval Center", "Analytics"])
+        st.write(f"{user.name} · {user.role.value}")
+        st.button("Sign out", on_click=st.logout)
+        page = st.radio("Navigation", allowed_pages(user.role))
 
     if page == "Dashboard":
-        _render_dashboard()
+        _render_dashboard(user)
     elif page == "New Request":
-        _render_new_request()
+        _render_new_request(user)
     elif page == "Ticket Queue":
-        _render_ticket_queue()
+        _render_ticket_queue(user)
     elif page == "Approval Center":
-        _render_approval_center()
+        _render_approval_center(user)
     else:
-        _render_analytics()
+        _render_analytics(user)
 
 
 if __name__ == "__main__":

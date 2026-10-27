@@ -133,7 +133,11 @@ def test_provider_failure_does_not_save_unclassified_ticket(
     path = tmp_path / "tickets.sqlite3"
 
     with pytest.raises(LLMProviderError):
-        submit_request(sample_request(), path=path)
+        submit_request(
+            sample_request(),
+            path=path,
+            created_by="oidc-user-1",
+        )
 
     assert list_tickets(path) == []
 

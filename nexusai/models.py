@@ -99,5 +99,7 @@ class TicketRecord(BaseModel):
     proposal: ActionProposal | None = None
     status: TicketStatus = TicketStatus.NEW
     reviewer_notes: str | None = None
+    created_by: str | None = None
+    reviewed_by: str | None = None
     created_at: datetime
     updated_at: datetime

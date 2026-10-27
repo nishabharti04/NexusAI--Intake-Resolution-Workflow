@@ -46,6 +46,43 @@ def test_list_tickets_orders_newest_first_and_filters_status(
     assert list_tickets(database_path, TicketStatus.APPROVED) == []
 
 
+def test_list_tickets_can_be_scoped_to_creator(database_path: Path) -> None:
+    first = create_ticket(database_path, sample_request("First request"), created_by="user-1")
+    create_ticket(database_path, sample_request("Second request"), created_by="user-2")
+
+    assert [ticket.id for ticket in list_tickets(database_path, created_by="user-1")] == [
+        first.id
+    ]
+
+
+def test_initialize_database_migrates_existing_ticket_table(tmp_path: Path) -> None:
+    import sqlite3
+
+    path = tmp_path / "legacy.sqlite3"
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            """
+            CREATE TABLE tickets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                request_json TEXT NOT NULL,
+                classification_json TEXT,
+                proposal_json TEXT,
+                status TEXT NOT NULL,
+                reviewer_notes TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+
+    initialize_database(path)
+
+    with sqlite3.connect(path) as connection:
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(tickets)")}
+    assert "created_by" in columns
+    assert "reviewed_by" in columns
+
+
 def test_get_ticket_reports_missing_id(database_path: Path) -> None:
     with pytest.raises(KeyError, match="does not exist"):
         get_ticket(database_path, 999)

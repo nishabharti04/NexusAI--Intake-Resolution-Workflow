@@ -12,6 +12,8 @@ NexusAI is a beginner-friendly Streamlit application that captures intake reques
 - SQLite-backed ticket persistence and workflow status tracking
 - Review and approval center for routing decisions
 - Dashboard and analytics views
+- Google or Microsoft OIDC login with Requester, Reviewer, and Admin roles
+- Requester-owned ticket visibility and reviewer attribution
 - Automated tests with pytest
 
 ## Local setup
@@ -50,6 +52,38 @@ Chat Completions endpoint and set `NEXUSAI_LLM_MODEL` to a model it supports.
 When no API key is configured, the app clearly indicates demo mode. If a
 configured provider request fails, the app reports the error and does not
 silently switch to demo mode or save a partially classified request.
+
+## Configure sign-in and roles
+
+The app requires OIDC sign-in; there is no unauthenticated mode. Streamlit
+handles the OpenID Connect login, and NexusAI maps authenticated email addresses
+to roles. Users not listed as admins or reviewers receive the Requester role.
+
+1. Register an OIDC web application with Google Identity, Microsoft Entra ID,
+   or another compatible provider.
+2. Register this local redirect URI with the provider:
+   `http://localhost:8501/oauth2callback`
+3. Copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml`.
+4. Replace the client ID, client secret, and cookie secret with your own values.
+   Generate a cookie secret with:
+   `python -c "import secrets; print(secrets.token_urlsafe(32))"`
+5. Add the email addresses for administrators to `admin_emails` and reviewers
+   to `reviewer_emails`. Keep the lists private.
+6. Start the app using the launch command below and sign in through your
+   provider.
+
+Role permissions:
+
+- **Requester:** submit requests and view only tickets they created.
+- **Reviewer:** view the team queue, review/approve/reject tickets, and see
+  analytics.
+- **Admin:** all Reviewer permissions; role assignments are managed through
+  the private `admin_emails` and `reviewer_emails` configuration.
+
+Ticket ownership is tied to the OIDC subject claim, not a form field. Tickets
+created before login was enabled have no owner and are visible only to
+Reviewers and Admins. Never commit `.streamlit/secrets.toml` or share its
+contents.
 
 ## Launch the app
 
