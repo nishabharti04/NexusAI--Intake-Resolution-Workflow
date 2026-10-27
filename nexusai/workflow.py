@@ -7,7 +7,15 @@ from pathlib import Path
 from nexusai.auth import UserRole, can_review
 from nexusai.classifier import build_proposal
 from nexusai.config import database_path
-from nexusai.models import ActionProposal, ClassificationResult, IntakeRequest, TicketRecord, TicketStatus
+from nexusai.models import (
+    ActionProposal,
+    ClassificationResult,
+    IntakeRequest,
+    RecommendedAction,
+    TicketRecord,
+    TicketStatus,
+    Urgency,
+)
 from nexusai.storage import create_ticket, get_ticket, initialize_database, update_ticket
 
 
@@ -22,12 +30,20 @@ def submit_request(
     initialize_database(target_path)
     classification, proposal, _ = build_proposal(request)
     ticket = create_ticket(target_path, request, created_by=created_by)
+    requires_review = (
+        classification.urgency in {Urgency.HIGH, Urgency.CRITICAL}
+        or proposal.action is RecommendedAction.ESCALATE_HUMAN
+    )
     updated = update_ticket(
         target_path,
         ticket.id,
         classification=classification,
         proposal=proposal,
-        status=TicketStatus.PENDING_REVIEW,
+        status=(
+            TicketStatus.PENDING_REVIEW
+            if requires_review
+            else TicketStatus.AUTO_PROCESSED
+        ),
     )
     return updated
 

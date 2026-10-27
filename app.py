@@ -17,7 +17,7 @@ from nexusai.auth import (
     resolve_role,
 )
 from nexusai.classifier import LLMProviderError
-from nexusai.config import database_path
+from nexusai.config import database_path, llm_settings
 from nexusai.models import (
     ActionProposal,
     IntakeRequest,
@@ -32,8 +32,7 @@ DB_PATH = database_path()
 
 
 def _mode_badge() -> str:
-    api_key = os.getenv("NEXUSAI_LLM_API_KEY")
-    if api_key:
+    if llm_settings().get("api_key"):
         return "AI mode enabled"
     return "Demo mode active"
 
@@ -42,6 +41,7 @@ def _status_color(status: TicketStatus) -> str:
     palette = {
         TicketStatus.NEW: "#3a83f7",
         TicketStatus.PENDING_REVIEW: "#d99a00",
+        TicketStatus.AUTO_PROCESSED: "#2bb673",
         TicketStatus.AWAITING_INFORMATION: "#ff8c42",
         TicketStatus.ROUTED: "#2bb673",
         TicketStatus.ESCALATED: "#c94d6a",
@@ -120,6 +120,13 @@ def _render_new_request(user: AuthenticatedUser) -> None:
     proposal = ticket.proposal
 
     st.success("Ticket submitted successfully.")
+    if ticket.status is TicketStatus.PENDING_REVIEW:
+        st.warning("This ticket requires human review due to its urgency or escalation recommendation.")
+    else:
+        st.info(
+            "This routine ticket was processed without manual approval. "
+            "No external action or message was sent."
+        )
     st.markdown("### Proposed classification")
     col1, col2, col3 = st.columns(3)
     if classification:

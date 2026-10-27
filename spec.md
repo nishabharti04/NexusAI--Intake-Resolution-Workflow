@@ -34,6 +34,7 @@ NexusAI is a functional, local-first intake workflow application. It accepts inc
 - Provide an Approval Center for proposed actions. A reviewer can approve, edit and approve, or reject an action.
 - Persist reviewer decisions, edited recommendations, and status changes.
 - Keep critical incidents escalated for human handling; do not allow an AI recommendation to bypass deterministic policy.
+- Require human review for critical incidents, High or Critical urgency, and any recommendation to escalate to a human. Automatically accept routine recommendations without placing them in the Approval Center; do not perform external side effects such as sending messages or creating external tickets.
 
 ### Dashboard and analytics
 
@@ -72,11 +73,12 @@ NexusAI is a functional, local-first intake workflow application. It accepts inc
 4. Tickets and reviewer decisions survive application restarts.
 5. A reviewer can review, edit/approve, and reject proposed actions.
 6. Dashboard and analytics reflect stored tickets and workflow statuses.
-7. Automated tests pass, and the README contains exact setup and launch commands.
+7. Routine requests are marked auto-processed without entering the Approval Center, while critical, High/Critical urgency, and human-escalation requests require review.
+8. Automated tests pass, and the README contains exact setup and launch commands.
 
 ## Out of scope for the MVP
 
 - Authentication, role-based access, and multi-tenant deployment.
 - Email ingestion, external ticketing integrations, and background job processing.
-- Automatic execution of model-generated actions without human review.
+- External execution of actions, such as sending email or creating tickets in third-party systems.
 - Production hosting, SLA guarantees, and advanced audit/compliance features.

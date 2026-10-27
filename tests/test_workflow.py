@@ -17,6 +17,15 @@ def sample_request(subject: str = "Password reset") -> IntakeRequest:
     )
 
 
+def routine_request() -> IntakeRequest:
+    return IntakeRequest(
+        subject="Office supply question",
+        description="Please let me know where I can find the standard office supply form.",
+        requester_name="Alex Doe",
+        requester_email="alex@example.com",
+    )
+
+
 def test_build_proposal_uses_demo_mode_when_no_api_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("NEXUSAI_LLM_API_KEY", raising=False)
     monkeypatch.delenv("NEXUSAI_LLM_BASE_URL", raising=False)
@@ -48,6 +57,45 @@ def test_submit_request_persists_classification_and_status(tmp_path: Path) -> No
     assert ticket.status is TicketStatus.PENDING_REVIEW
     assert ticket.classification is not None
     assert ticket.proposal is not None
+
+
+def test_routine_request_is_auto_processed_without_human_review(tmp_path: Path) -> None:
+    ticket = submit_request(
+        routine_request(),
+        path=tmp_path / "tickets.sqlite3",
+        created_by="oidc-user-1",
+    )
+
+    assert ticket.classification is not None
+    assert ticket.classification.urgency is Urgency.LOW
+    assert ticket.proposal is not None
+    assert ticket.status is TicketStatus.AUTO_PROCESSED
+
+
+def test_high_urgency_request_requires_human_review(tmp_path: Path) -> None:
+    ticket = submit_request(
+        sample_request(),
+        path=tmp_path / "tickets.sqlite3",
+        created_by="oidc-user-1",
+    )
+
+    assert ticket.classification is not None
+    assert ticket.classification.urgency is Urgency.HIGH
+    assert ticket.status is TicketStatus.PENDING_REVIEW
+
+
+def test_critical_policy_request_requires_human_review(tmp_path: Path) -> None:
+    ticket = submit_request(
+        sample_request("Security breach: we suspect ransomware is encrypting files"),
+        path=tmp_path / "tickets.sqlite3",
+        created_by="oidc-user-1",
+    )
+
+    assert ticket.classification is not None
+    assert ticket.classification.urgency is Urgency.CRITICAL
+    assert ticket.proposal is not None
+    assert ticket.proposal.action is RecommendedAction.ESCALATE_HUMAN
+    assert ticket.status is TicketStatus.PENDING_REVIEW
 
 
 def test_review_ticket_allows_edit_and_approve(tmp_path: Path) -> None:

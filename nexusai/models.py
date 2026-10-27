@@ -32,6 +32,7 @@ class RecommendedAction(StrEnum):
 class TicketStatus(StrEnum):
     NEW = "new"
     PENDING_REVIEW = "pending_review"
+    AUTO_PROCESSED = "auto_processed"
     AWAITING_INFORMATION = "awaiting_information"
     ROUTED = "routed"
     ESCALATED = "escalated"

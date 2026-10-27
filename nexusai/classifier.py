@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import json
-import os
 from typing import Any
 
 import requests
 from pydantic import TypeAdapter, ValidationError
 
+from nexusai.config import llm_settings
 from nexusai.models import (
     ActionProposal,
     ClassificationResult,
@@ -95,7 +95,7 @@ def _validate_model_payload(payload: Any) -> ClassificationResult:
 
 def _build_llm_request_body(request: IntakeRequest) -> dict[str, Any]:
     return {
-        "model": os.getenv("NEXUSAI_LLM_MODEL", "gpt-4o-mini"),
+        "model": llm_settings()["model"],
         "messages": [
             {
                 "role": "system",
@@ -115,18 +115,17 @@ def _build_llm_request_body(request: IntakeRequest) -> dict[str, Any]:
             },
         ],
         "temperature": 0,
+        "response_format": {"type": "json_object"},
     }
 
 
 def classify_request(request: IntakeRequest) -> tuple[ClassificationResult, str]:
     """Return a structured classification and the mode used to generate it."""
-    api_key = os.getenv("NEXUSAI_LLM_API_KEY")
+    settings = llm_settings()
+    api_key = settings.get("api_key")
     if not api_key:
         return _demo_classification(request), "demo"
-    base_url = os.getenv(
-        "NEXUSAI_LLM_BASE_URL",
-        "https://api.openai.com/v1/chat/completions",
-    )
+    base_url = settings["base_url"]
 
     try:
         response = requests.post(
@@ -152,7 +151,15 @@ def classify_request(request: IntakeRequest) -> tuple[ClassificationResult, str]
     try:
         payload = response.json()
         content = payload["choices"][0]["message"]["content"]
-        parsed = json.loads(content) if isinstance(content, str) else content
+        if isinstance(content, str):
+            cleaned_content = content.strip()
+            if cleaned_content.startswith("```"):
+                lines = cleaned_content.splitlines()
+                if lines[-1].strip() == "```":
+                    cleaned_content = "\n".join(lines[1:-1]).strip()
+            parsed = json.loads(cleaned_content)
+        else:
+            parsed = content
         classification = _validate_model_payload(parsed)
     except (KeyError, IndexError, TypeError, ValueError, ValidationError):
         raise LLMProviderError(

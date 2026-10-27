@@ -9,6 +9,7 @@ NexusAI is a beginner-friendly Streamlit application that captures intake reques
 - Structured classification into IT Support, Security, HR, Customer Support, and Vendor Onboarding
 - Urgency, confidence, assigned team, and action recommendation
 - Deterministic critical incident policy outside the LLM
+- Human review for critical incidents, High/Critical urgency, or human-escalation recommendations; routine tickets are auto-processed
 - SQLite-backed ticket persistence and workflow status tracking
 - Review and approval center for routing decisions
 - Dashboard and analytics views
@@ -31,7 +32,43 @@ NexusAI is a beginner-friendly Streamlit application that captures intake reques
 
 No API key is required for local use. The app automatically uses demo mode when either `NEXUSAI_LLM_API_KEY` or `NEXUSAI_LLM_BASE_URL` is missing.
 
-## Configure a real LLM provider
+## Run a local AI model with Ollama
+
+Ollama runs the model on your computer, so requests are not sent to a cloud AI
+provider and there is no per-request API charge. Install Ollama, then open a
+terminal and download a small model:
+
+```powershell
+ollama pull qwen2.5:3b
+```
+
+In the same terminal where you will run NexusAI, configure Ollama's
+OpenAI-compatible endpoint and start the app:
+
+```powershell
+$env:NEXUSAI_LLM_API_KEY = "ollama"
+$env:NEXUSAI_LLM_BASE_URL = "http://localhost:11434/v1/chat/completions"
+$env:NEXUSAI_LLM_MODEL = "qwen2.5:3b"
+python -m streamlit run app.py
+```
+
+The `ollama` value is a local compatibility placeholder, not a personal API
+key. Keep Ollama running while you use the app. The first model download needs
+an internet connection and several gigabytes of disk space.
+
+To keep Ollama settings across terminal sessions, add this section to your
+Git-ignored `.streamlit/secrets.toml` instead of setting environment variables:
+
+```toml
+[llm]
+api_key = "ollama"
+base_url = "http://localhost:11434/v1/chat/completions"
+model = "qwen2.5:3b"
+```
+
+Environment variables take precedence over values in the local secrets file.
+
+## Configure a cloud LLM provider
 
 The default provider is OpenAI's Chat Completions API. Set the API key as an
 environment variable; do not put a real key in source files or commit it.
@@ -47,10 +84,10 @@ $env:NEXUSAI_LLM_MODEL = "gpt-4o-mini"
 python -m streamlit run app.py
 ```
 
-For an OpenAI-compatible provider, set `NEXUSAI_LLM_BASE_URL` to that provider's
-Chat Completions endpoint and set `NEXUSAI_LLM_MODEL` to a model it supports.
-When no API key is configured, the app clearly indicates demo mode. If a
-configured provider request fails, the app reports the error and does not
+For an OpenAI-compatible cloud provider, set `NEXUSAI_LLM_BASE_URL` to that
+provider's Chat Completions endpoint and set `NEXUSAI_LLM_MODEL` to a model it
+supports. When no API key is configured, the app clearly indicates demo mode.
+If a configured provider request fails, the app reports the error and does not
 silently switch to demo mode or save a partially classified request.
 
 ## Configure sign-in and roles
@@ -84,6 +121,12 @@ Ticket ownership is tied to the OIDC subject claim, not a form field. Tickets
 created before login was enabled have no owner and are visible only to
 Reviewers and Admins. Never commit `.streamlit/secrets.toml` or share its
 contents.
+
+Routine tickets are marked `auto_processed` and do not enter the Approval
+Center. Critical incidents, High/Critical urgency tickets, and recommendations
+to escalate to a human remain pending review. Auto-processing accepts the
+workflow recommendation in this local app; it does not send messages or perform
+actions in external systems.
 
 ## Launch the app
 
