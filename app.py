@@ -17,7 +17,7 @@ from nexusai.auth import (
     resolve_role,
 )
 from nexusai.classifier import LLMProviderError
-from nexusai.config import database_path, llm_settings
+from nexusai.config import database_path, ensure_streamlit_secrets, llm_settings
 from nexusai.models import (
     ActionProposal,
     IntakeRequest,
@@ -28,6 +28,7 @@ from nexusai.storage import initialize_database, list_tickets
 from nexusai.workflow import review_ticket, submit_request
 
 
+ensure_streamlit_secrets()
 DB_PATH = database_path()
 
 

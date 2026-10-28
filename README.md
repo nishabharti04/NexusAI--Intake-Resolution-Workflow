@@ -128,6 +128,27 @@ to escalate to a human remain pending review. Auto-processing accepts the
 workflow recommendation in this local app; it does not send messages or perform
 actions in external systems.
 
+## Deploy to Render's free tier
+
+The repository includes `render.yaml` for a free Render Web Service. Hosted
+SQLite storage is temporary on Render's free tier: Restarts and redeployments
+can remove tickets. This deployment is for validation, not durable production
+use.
+
+Before deployment:
+
+1. Connect the GitHub repository in Render and select `render.yaml` for Blueprint deployment.
+2. Choose HTTPS as the deployed URL and enter it as
+   `https://YOUR-SERVICE.onrender.com/oauth2callback` in Google OAuth.
+3. Enter the Google OAuth Client ID and secret in Render's environment settings.
+4. Set `NEXUSAI_ADMIN_EMAILS` to the administrator's Google email. Use comma-separated values for multiple reviewers.
+5. Leave the LLM variables unset for demo-mode deployment. Do not copy local
+   Ollama settings to Render; Ollama on your PC is not reachable from the host.
+
+Render restarts free services, and they can sleep while inactive. Test with
+non-sensitive sample requests and do not use temporary hosted data for real
+records.
+
 ## Launch the app
 
 ```powershell

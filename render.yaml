@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: nexusai
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run app.py --server.address 0.0.0.0 --server.port $PORT --server.headless true
+    healthCheckPath: /
+    envVars:
+      - key: NEXUSAI_DB_PATH
+        value: /tmp/nexusai.db
+      - key: NEXUSAI_AUTH_REDIRECT_URI
+        sync: false
+      - key: NEXUSAI_AUTH_COOKIE_SECRET
+        generateValue: true
+      - key: NEXUSAI_AUTH_CLIENT_ID
+        sync: false
+      - key: NEXUSAI_AUTH_CLIENT_SECRET
+        sync: false
+      - key: NEXUSAI_AUTH_SERVER_METADATA_URL
+        value: https://accounts.google.com/.well-known/openid-configuration
+      - key: NEXUSAI_ADMIN_EMAILS
+        sync: false
+      - key: NEXUSAI_REVIEWER_EMAILS
+        sync: false
