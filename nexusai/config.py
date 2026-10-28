@@ -22,10 +22,8 @@ def llm_secrets_path() -> Path:
 
 
 def ensure_streamlit_secrets() -> None:
-    """Create runtime Streamlit secrets from deployment environment variables."""
+    """Create or refresh runtime Streamlit secrets from hosted environment variables."""
     secrets_path = streamlit_secrets_path()
-    if secrets_path.exists():
-        return
 
     auth_values = {
         key: os.getenv(environment_name)

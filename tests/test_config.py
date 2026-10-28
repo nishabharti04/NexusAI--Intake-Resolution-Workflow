@@ -64,6 +64,38 @@ def test_hosted_secrets_are_created_from_environment(
     assert "admin_emails" in content
 
 
+def test_hosted_secrets_refresh_existing_runtime_values(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    secrets_path = tmp_path / ".streamlit" / "secrets.toml"
+    secrets_path.parent.mkdir()
+    secrets_path.write_text(
+        '[auth]\nredirect_uri = "https://nexusai.onrender.com/oauth2callback"\n'
+        'cookie_secret = "old-cookie"\nclient_id = "old-client"\n'
+        'client_secret = "old-secret"\n'
+        'server_metadata_url = "https://accounts.google.com/.well-known/openid-configuration"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("nexusai.config.streamlit_secrets_path", lambda: secrets_path)
+    monkeypatch.setenv(
+        "NEXUSAI_AUTH_REDIRECT_URI",
+        "https://nexusai-v21a.onrender.com/oauth2callback",
+    )
+    monkeypatch.setenv("NEXUSAI_AUTH_COOKIE_SECRET", "new-cookie")
+    monkeypatch.setenv("NEXUSAI_AUTH_CLIENT_ID", "new-client")
+    monkeypatch.setenv("NEXUSAI_AUTH_CLIENT_SECRET", "new-secret")
+    monkeypatch.setenv(
+        "NEXUSAI_AUTH_SERVER_METADATA_URL",
+        "https://accounts.google.com/.well-known/openid-configuration",
+    )
+
+    ensure_streamlit_secrets()
+
+    content = secrets_path.read_text(encoding="utf-8")
+    assert "nexusai-v21a.onrender.com" in content
+    assert "old-client" not in content
+
+
 def test_hosted_secrets_reject_incomplete_auth_configuration(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
